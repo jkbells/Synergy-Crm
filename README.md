@@ -1,16 +1,12 @@
-# Synergy-Crm
-Single-page CSV/Excel-to-dashboard app. No build step, no backend.
-
-
-# SYNERGY (static build)
-
-Single-page CSV/Excel-to-dashboard app. No build step, no backend.
-
-## Deploy on Netlify
-**Drag and drop:** app.netlify.com > Sites > "Deploy manually" > drop this folder (or the zip contents).
-**Git:** push these files to a repo, then Add new site > Import from Git. Leave build command empty, publish directory `.`.
-
-## Notes
-- Uploaded datasets are stored in each visitor's browser (IndexedDB), not on a server.
-- Excel parsing loads SheetJS from cdnjs.cloudflare.com, so the page needs internet access.
-- For server-side storage, auth and a database, the next step is the Next.js + Supabase/Postgres version.
+# SYNERGY CRM — backend scaffold
+Stack: Next.js (App Router) · Prisma · Postgres (Neon or Supabase) · Supabase Auth + Storage · Netlify.
+## Setup
+1. `cp .env.example .env.local` and fill values. 2. Create a private Supabase Storage bucket named `datasets`.
+3. `npm i && npx prisma migrate dev --name init` (production: `npm run migrate`). 4. `npm run dev`.
+## Deploy (Netlify)
+Connect the repo; netlify.toml is preconfigured. Add every variable from .env.example in Site settings → Environment. Service-role key stays server-side only.
+## Security model
+Each route calls `requireWorkspace()`; every query filters by `workspaceId`. Inputs validated with zod. Add rate limiting (e.g. Upstash) before launch.
+## Status
+Done: schema (contacts, companies, deals/pipelines, activities, tasks, datasets), auth helper, contacts/deals/import routes.
+TODO: companies, activities, tasks, datasets upload+analyze routes (port the analytics engine from synergy.html), frontend, email sync, workflows.
