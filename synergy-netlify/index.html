@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>SYNERGY</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f6f7fb;--sf:#fff;--tx:#0b1020;--mu:#5b6478;--bd:#e3e6ee;--ac:#4f46e5;--ac2:#0891b2;--ok:#16a34a;--er:#dc2626;--wn:#d97706;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0a0e1a;--sf:#111729;--tx:#eef1f8;--mu:#9aa4bd;--bd:#242c44;--ac:#818cf8;--ac2:#22d3ee}}
+:root[data-theme=dark]{--bg:#0a0e1a;--sf:#111729;--tx:#eef1f8;--mu:#9aa4bd;--bd:#242c44;--ac:#818cf8;--ac2:#22d3ee}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:var(--sf);border-bottom:1px solid var(--bd);position:sticky;top:env(safe-area-inset-top,0px);z-index:5;flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.14em;color:var(--ac)}nav{display:flex;gap:4px}
+button,select,input{font:inherit;color:inherit}
+.btn{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px;cursor:pointer}.btn:hover{border-color:var(--ac)}
+.btn.p{background:var(--ac);border-color:var(--ac);color:#fff}.btn.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+main{max-width:1280px;margin:0 auto;padding:20px}h2{margin:0 0 4px;font-size:22px}.mu{color:var(--mu)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px}
+.kpi .l{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}.kpi .v{font-size:28px;font-weight:700;margin-top:4px}.kpi .s{font-size:12px;color:var(--mu)}
+.charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:12px}
+.row{display:grid;grid-template-columns:130px 1fr 52px;gap:8px;align-items:center;margin:6px 0;font-size:13px}.row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:14px;background:var(--bd);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--ac),var(--ac2));border-radius:4px}
+.drop{border:2px dashed var(--bd);border-radius:12px;padding:36px;text-align:center;background:var(--sf)}.drop.h{border-color:var(--ac)}
+.chip{display:inline-flex;gap:6px;background:var(--bd);border-radius:99px;padding:2px 10px;margin:2px;font-size:12px;cursor:pointer}
+.tw{overflow-x:auto;max-height:420px;overflow-y:auto}table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{position:sticky;top:0;background:var(--sf);text-align:left;cursor:pointer;white-space:nowrap}th,td{padding:6px 10px;border-bottom:1px solid var(--bd);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:11px;padding:1px 7px;border-radius:5px;background:var(--bd);color:var(--mu)}
+.flt{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px;align-items:center}.flt select{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:6px;max-width:190px}
+.ins li{margin:6px 0}.q{font-size:36px;font-weight:700}
+.step{padding:3px 0}.hide{display:none}
+</style></head><body>
+<header><span class="logo">SYNERGY</span>
+<nav><button class="btn" data-v="dash">Dashboard</button><button class="btn" data-v="lib">Data Library</button></nav>
+<select id="sw" class="btn" title="Dataset switcher"></select>
+<span style="flex:1"></span>
+<button class="btn" id="th">Theme</button><label class="btn p">Upload CSV / Excel<input id="fi" type="file" accept=".csv,.tsv,.xlsx,.xls" hidden></label></header>
+<main id="m"></main>
+<script>
+// ---------- storage (IndexedDB, per-browser) ----------
+const DB={o:null,async open(){if(this.o)return this.o;return this.o=await new Promise((r,j)=>{const q=indexedDB.open('synergy',1);q.onupgradeneeded=()=>q.result.createObjectStore('ds',{keyPath:'id'});q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)})},
+async tx(m,f){const d=await this.open();return new Promise((r,j)=>{const t=d.transaction('ds',m),s=t.objectStore('ds'),q=f(s);t.oncomplete=()=>r(q&&q.result);t.onerror=()=>j(t.error)})},
+all(){return this.tx('readonly',s=>s.getAll())},put(x){return this.tx('readwrite',s=>s.put(x))},del(id){return this.tx('readwrite',s=>s.delete(id))}};
+// ---------- schema detection ----------
+const ROLES=[['email',/e-?mail/i],['first',/first.?name/i],['last',/last.?name/i],['company',/company|organi[sz]ation|account/i],['title',/title|role|position/i],['country',/country|nation/i],['city',/city|location/i],['step',/step|stage/i],['status',/(email|lead|delivery)?.*status/i],['reply',/reply.?cat|response.?cat|sentiment/i],['campaign',/campaign/i],['segment',/segment/i],['date',/date|updated|created|added/i],['url',/url|link/i]];
+const emailRe=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const isE=v=>v===null||v===undefined||String(v).trim()==='';
+function parseDate(v){if(v instanceof Date)return v;const s=String(v).trim();if(!/^\d{1,4}[\/\-.]\d{1,2}[\/\-.]\d{1,4}|^\d{4}-\d{2}-\d{2}/.test(s))return null;const d=new Date(s);return isNaN(d)?null:d}
+function detect(cols,rows){const sch=cols.map(name=>{const vals=rows.map(r=>r[name]).filter(v=>!isE(v));const n=vals.length,u=new Set(vals.map(String)).size;let type='text';
+if(n){const num=vals.filter(v=>typeof v==='number'||(!isNaN(+String(v).replace(/[$€£,%]/g,''))&&String(v).trim()!=='')).length;
+const dt=vals.filter(v=>parseDate(v)).length,em=vals.filter(v=>emailRe.test(String(v))).length;
+if(em/n>.8)type='email';else if(dt/n>.8)type='date';else if(num/n>.9)type='number';else if(u<=Math.max(12,n*.2))type='category';else if(vals.filter(v=>/^https?:/i.test(v)).length/n>.8)type='url'}
+let role=null;for(const[r,re]of ROLES)if(re.test(name)&&!(r==='status'&&/verif/i.test(name))){role=r;break}
+if(role==='step'&&type==='text')type='category';
+return{name,type,role,filled:n,unique:u,missing:rows.length-n}});
+const used={};sch.forEach(c=>{if(c.role){if(used[c.role]&&c.role!=='date')c.role=null;else used[c.role]=c.name}});return sch}
+// ---------- analytics engine ----------
+const cnt=(rows,k)=>{const m={};rows.forEach(r=>{const v=r[k];if(!isE(v)){const s=String(v).trim();m[s]=(m[s]||0)+1}});return Object.entries(m).sort((a,b)=>b[1]-a[1])};
+const pct=(a,b)=>b?(a/b*100).toFixed(1)+'%':'—';
+function analyze(ds,rows){const sch=ds.schema,col=r=>(sch.find(c=>c.role===r)||{}).name;
+const C={email:col('email'),company:col('company'),first:col('first'),step:col('step'),status:col('status'),reply:col('reply'),country:col('country'),title:col('title'),campaign:col('campaign'),segment:col('segment'),date:col('date')};
+const kpis=[],charts=[],ins=[];
+// leads = rows that look like records (skip section headers with <3 filled cells)
+const leads=rows.filter(r=>sch.filter(c=>!isE(r[c.name])).length>=3);
+kpis.push({l:'Records',v:leads.length,s:`${rows.length-leads.length} section/blank rows excluded`});
+if(C.company)kpis.push({l:'Unique Companies',v:new Set(leads.map(r=>String(r[C.company]||'').trim().toLowerCase()).filter(Boolean)).size});
+let sent=0,replies=0;
+if(C.status){const st=cnt(leads,C.status),has=n=>st.filter(([k])=>new RegExp(n,'i').test(k)).reduce((a,b)=>a+b[1],0);
+sent=st.reduce((a,b)=>a+b[1],0);replies=has('repl');const bo=has('bounc'),un=has('unsub');
+kpis.push({l:'Emails Sent',v:sent,s:'rows with an email status'});
+if(replies||st.some(([k])=>/repl/i.test(k)))kpis.push({l:'Replies',v:replies},{l:'Reply Rate',v:pct(replies,sent),s:`${replies} / ${sent}`});
+if(st.some(([k])=>/bounc/i.test(k)))kpis.push({l:'Bounced',v:bo},{l:'Bounce Rate',v:pct(bo,sent)});
+if(st.some(([k])=>/unsub/i.test(k)))kpis.push({l:'Unsubscribed',v:un});
+charts.push({t:'Email status',d:st});}
+if(C.step){const s=cnt(leads,C.step).sort((a,b)=>parseFloat(a[0])-parseFloat(b[0]));charts.push({t:'Leads by current step',d:s.map(([k,v])=>['Step '+k.replace(/\.0$/,''),v])});
+const tot=s.reduce((a,b)=>a+b[1],0),top=cnt(leads,C.step)[0];if(top)ins.push(`${top[1]} of ${tot} leads with a step value are on Step ${top[0].replace(/\.0$/,'')} (${pct(top[1],tot)}).`)}
+if(C.reply){const r=cnt(leads,C.reply);if(r.length){charts.push({t:'Replies by category',d:r});ins.push(`"${r[0][0]}" is the largest reply category (${r[0][1]}).`)}}
+if(replies||sent)ins.push(`Reply rate is ${pct(replies,sent)} (${replies} replies from ${sent} sent).`);
+[['country','Country'],['segment','Segment'],['title','Top job titles'],['campaign','Campaign'],['company','Top companies']].forEach(([k,t])=>{if(C[k]){const d=cnt(leads,C[k]).slice(0,k==='title'||k==='company'?8:10);if(d.length>1||k==='campaign')charts.push({t,d})}});
+// generic categories & numerics
+const shown=new Set(Object.values(C).filter(Boolean));
+sch.forEach(c=>{if(shown.has(c.name))return;if(c.type==='category'&&c.unique>1)charts.push({t:c.name,d:cnt(leads,c.name).slice(0,10)});
+if(c.type==='number'){const v=leads.map(r=>parseFloat(String(r[c.name]).replace(/[$€£,%]/g,''))).filter(x=>!isNaN(x));if(v.length)kpis.push({l:'Σ '+c.name,v:Math.round(v.reduce((a,b)=>a+b,0)*100)/100,s:`avg ${(v.reduce((a,b)=>a+b,0)/v.length).toFixed(2)}`})}});
+if(C.date){const m={};leads.forEach(r=>{const d=parseDate(r[C.date]);if(d){const k=d.toISOString().slice(0,10);m[k]=(m[k]||0)+1}});const d=Object.entries(m).sort();if(d.length>1)charts.push({t:C.date+' (timeline)',d})}
+// data quality
+const issues=[];let pen=0;const emc=C.email;
+const dupE=emc?leads.length-new Set(leads.map(r=>String(r[emc]||'').toLowerCase()).filter(Boolean)).size-leads.filter(r=>isE(r[emc])).length+leads.filter(r=>isE(r[emc])).length*0:0;
+if(emc){const bad=leads.filter(r=>!isE(r[emc])&&!emailRe.test(String(r[emc]).trim())).length,miss=leads.filter(r=>isE(r[emc])).length;
+if(dupE>0){issues.push(`${dupE} duplicate email(s)`);pen+=Math.min(15,dupE)}if(bad){issues.push(`${bad} invalid email(s)`);pen+=Math.min(15,bad)}if(miss){issues.push(`${miss} record(s) missing email`);pen+=Math.min(15,miss)}}
+sch.forEach(c=>{const f=leads.filter(r=>isE(r[c.name])).length;if(f===leads.length&&leads.length){issues.push(`Column "${c.name}" is empty`);pen+=2}});
+const cells=leads.length*sch.length,mis=sch.reduce((a,c)=>a+leads.filter(r=>isE(r[c.name])).length,0);if(cells&&mis/cells>.05){issues.push(`${(mis/cells*100).toFixed(1)}% of cells are blank`);pen+=Math.min(20,Math.round(mis/cells*40))}
+return{kpis,charts,ins,C,leads,dq:{score:Math.max(0,100-pen),issues}}}
+// ---------- state & UI ----------
+const S={list:[],cur:null,view:'dash',filters:{},q:'',sort:null,page:0};
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtD=v=>v instanceof Date?v.toISOString().slice(0,10):v;
+function fromRows(name,aoa,size){const hdr=aoa[0].map((h,i)=>isE(h)?`Column ${i+1}`:String(h).trim());
+const rows=aoa.slice(1).filter(r=>r.some(v=>!isE(v))).map(r=>{const o={};hdr.forEach((h,i)=>o[h]=r[i]instanceof Date?fmtD(r[i]):(r[i]??''));return o});
+const cols=[...new Set(hdr)];return{id:crypto.randomUUID(),name,created:Date.now(),viewed:Date.now(),size,rows,schema:detect(cols,rows)}}
+async function ingest(file){const m=$('#m');m.innerHTML=`<div class="card"><h2>Analyzing your dataset…</h2><div class="mu" id="stp"></div></div>`;
+const steps=['File uploaded','Dataset validated','Columns detected','Data types identified','Metrics calculated','Dashboard generated'];
+const tick=async i=>{$('#stp').innerHTML=steps.slice(0,i+1).map(s=>`<div class="step">✓ ${s}</div>`).join('');await new Promise(r=>setTimeout(r,120))};
+try{await tick(0);let aoa;const buf=await file.arrayBuffer();
+if(/\.(xlsx|xls)$/i.test(file.name)){const wb=XLSX.read(buf,{cellDates:true});let best=null,bn=0;
+wb.SheetNames.forEach(n=>{const a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});const w=a.filter(r=>r.filter(v=>!isE(v)).length>=3).length;if(w>bn){bn=w;best=a;}});
+if(!best)throw new Error('empty');aoa=best}else{const wb=XLSX.read(new TextDecoder('utf-8').decode(buf),{type:'string',cellDates:true,FS:/\.tsv$/i.test(file.name)?'\t':undefined});aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''})}
+await tick(1);if(aoa.length<2||!aoa[0].length)throw new Error('empty');
+const ds=fromRows(file.name.replace(/\.[^.]+$/,''),aoa,file.size);await tick(2);await tick(3);await tick(4);await DB.put(ds);await tick(5);
+S.list=await DB.all();S.cur=ds.id;S.filters={};S.q='';S.page=0;render()}
+catch(e){m.innerHTML=`<div class="card"><h2>SYNERGY couldn't process this file.</h2><p class="mu">The file appears empty, has no header row, or is in an unsupported format. Please check it and try again.</p></div>`}}
+function demo(){const cs=['Northwind','Contoso','Fabrikam','Globex','Initech','Umbrella','Hooli','Vandelay','Stark Ltd','Wayne Co'],ct=['United Kingdom','Germany','Sweden','Denmark','Spain'],ti=['IT Manager','Head of Support','Operations Director','Service Desk Lead'],stt=['sent','sent','sent','sent','sent','Replied','Bounced','Unsubscribed'],rc=['','','','','','Out of Office','Not Interested','Interested'];
+let s=7;const rnd=n=>(s=(s*9301+49297)%233280)/233280*n|0;const aoa=[['Company','Email','Title','Country','Current Step','Email Status','Reply Category','Date Added']];
+for(let i=0;i<120;i++){const c=cs[rnd(10)];const st=stt[rnd(8)];aoa.push([c,`lead${i}@${c.replace(/\W/g,'').toLowerCase()}.com`,ti[rnd(4)],ct[rnd(5)],1+rnd(4),st,st==='Replied'?rc[5+rnd(3)]:'',`2026-09-${String(1+rnd(28)).padStart(2,'0')}`])}
+const ds=fromRows('Demo – Outreach Campaign',aoa,0);DB.put(ds).then(async()=>{S.list=await DB.all();S.cur=ds.id;S.filters={};render()})}
+function bars(d){const mx=Math.max(...d.map(x=>x[1]),1);return d.map(([k,v])=>`<div class="row"><span class="n" title="${esc(k)}">${esc(k)}</span><div class="bar"><i style="width:${v/mx*100}%"></i></div><b>${v}</b></div>`).join('')}
+function filtered(ds,A){let r=A.leads;for(const[k,vs]of Object.entries(S.filters))if(vs.length)r=r.filter(x=>vs.includes(String(x[k]).trim()));
+if(S.q){const q=S.q.toLowerCase();r=r.filter(x=>Object.values(x).some(v=>String(v).toLowerCase().includes(q)))}return r}
+function render(){const sw=$('#sw');sw.innerHTML=S.list.length?S.list.map(d=>`<option value="${d.id}" ${d.id===S.cur?'selected':''}>${esc(d.name)}</option>`).join(''):'<option>No datasets</option>';
+document.querySelectorAll('nav .btn').forEach(b=>b.classList.toggle('on',b.dataset.v===S.view));
+const m=$('#m');const ds=S.list.find(d=>d.id===S.cur);
+if(S.view==='lib')return lib(m);
+if(!ds){m.innerHTML=`<div class="drop" id="dz"><div class="q">SYNERGY</div><h2>Turn Your Data Into Decisions.</h2><p class="mu">No datasets yet. Upload your first CSV or Excel file and SYNERGY will build an interactive dashboard.</p><p><label class="btn p">Upload CSV<input type="file" id="fi2" accept=".csv,.tsv,.xlsx,.xls" hidden></label> <button class="btn" id="dm">Try Demo Dataset</button></p></div>`;
+$('#fi2').onchange=e=>e.target.files[0]&&ingest(e.target.files[0]);$('#dm').onclick=demo;const dz=$('#dz');dz.ondragover=e=>{e.preventDefault();dz.classList.add('h')};dz.ondragleave=()=>dz.classList.remove('h');dz.ondrop=e=>{e.preventDefault();e.dataTransfer.files[0]&&ingest(e.dataTransfer.files[0])};return}
+const A=analyze(ds,ds.rows),F=filtered(ds,A),A2=Object.values(S.filters).some(v=>v.length)||S.q?analyze(ds,F.length?F:[]):A;
+const fcols=ds.schema.filter(c=>c.type==='category'&&c.unique>1&&c.unique<=30);
+const kp=A2.kpis.map(k=>`<div class="card kpi"><div class="l">${esc(k.l)}</div><div class="v">${esc(k.v)}</div><div class="s">${esc(k.s||'')}</div></div>`).join('');
+m.innerHTML=`<h2>${esc(ds.name)}</h2><div class="mu">${ds.rows.length} rows · ${ds.schema.length} columns · uploaded ${new Date(ds.created).toLocaleDateString()}</div>
+<div class="flt">${fcols.map(c=>`<select data-f="${esc(c.name)}"><option value="">${esc(c.name)}: all</option>${cnt(A.leads,c.name).map(([k,v])=>`<option ${(S.filters[c.name]||[]).includes(k)?'selected':''} value="${esc(k)}">${esc(k)} (${v})</option>`).join('')}</select>`).join('')}
+<input id="sq" placeholder="Search rows…" value="${esc(S.q)}" class="btn"><button class="btn" id="clr">Clear all</button><button class="btn" id="ex">Export CSV</button></div>
+<div>${Object.entries(S.filters).flatMap(([k,v])=>v.map(x=>`<span class="chip" data-k="${esc(k)}" data-x="${esc(x)}">${esc(k)} = ${esc(x)} ✕</span>`)).join('')}</div>
+<div class="grid" style="margin-top:10px">${kp}</div>
+<div class="charts">${A2.charts.map(c=>`<div class="card"><b>${esc(c.t)}</b><div style="margin-top:8px">${bars(c.d)}</div></div>`).join('')}
+<div class="card"><b>Insights</b> <span class="tag">calculated from your data</span><ul class="ins">${A2.ins.map(i=>`<li>${esc(i)}</li>`).join('')||'<li class="mu">Not enough recognizable fields for insights.</li>'}</ul></div>
+<div class="card"><b>Data quality</b><div class="q" style="color:${A.dq.score>85?'var(--ok)':A.dq.score>65?'var(--wn)':'var(--er)'}">${A.dq.score}<span class="mu" style="font-size:16px">/100</span></div><ul class="ins">${A.dq.issues.map(i=>`<li>${esc(i)}</li>`).join('')||'<li class="mu">No issues detected.</li>'}</ul></div></div>
+<div class="card" style="margin-top:12px"><b>Detected schema</b><div style="margin-top:6px">${ds.schema.map(c=>`<span class="chip" style="cursor:default">${esc(c.name)} · ${c.type}${c.role?' · '+c.role:''}</span>`).join('')}</div></div>
+${table(ds,F)}`;
+document.querySelectorAll('[data-f]').forEach(s=>s.onchange=()=>{S.filters[s.dataset.f]=s.value?[s.value]:[];S.page=0;render()});
+document.querySelectorAll('.chip[data-k]').forEach(c=>c.onclick=()=>{S.filters[c.dataset.k]=S.filters[c.dataset.k].filter(x=>x!==c.dataset.x);render()});
+$('#clr').onclick=()=>{S.filters={};S.q='';S.page=0;render()};
+$('#sq').onchange=e=>{S.q=e.target.value;S.page=0;render()};
+$('#ex').onclick=()=>{const ws=XLSX.utils.json_to_sheet(F),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([XLSX.utils.sheet_to_csv(ws)],{type:'text/csv'}));a.download=ds.name+'-filtered.csv';a.click()};
+document.querySelectorAll('th[data-c]').forEach(t=>t.onclick=()=>{S.sort=S.sort&&S.sort.c===t.dataset.c?{c:t.dataset.c,d:-S.sort.d}:{c:t.dataset.c,d:1};render()});
+document.querySelectorAll('[data-pg]').forEach(b=>b.onclick=()=>{S.page+=+b.dataset.pg;render()})}
+function table(ds,F){let r=[...F];if(S.sort)r.sort((a,b)=>{const x=a[S.sort.c],y=b[S.sort.c];return(typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*S.sort.d});
+const P=25,pages=Math.max(1,Math.ceil(r.length/P));S.page=Math.min(S.page,pages-1);const cs=ds.schema.map(c=>c.name);
+return`<div class="card" style="margin-top:12px"><b>Data explorer</b> <span class="mu">${r.length} rows</span><div class="tw"><table><thead><tr>${cs.map(c=>`<th data-c="${esc(c)}">${esc(c)}${S.sort&&S.sort.c===c?(S.sort.d>0?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>${r.slice(S.page*P,S.page*P+P).map(x=>`<tr>${cs.map(c=>`<td title="${esc(x[c])}">${esc(x[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+<div style="margin-top:8px"><button class="btn" data-pg="-1" ${S.page?'':'disabled'}>Prev</button> Page ${S.page+1}/${pages} <button class="btn" data-pg="1" ${S.page<pages-1?'':'disabled'}>Next</button></div></div>`}
+function lib(m){m.innerHTML=`<h2>Data Library</h2><div class="mu">Stored in this browser (IndexedDB).</div><div class="grid" style="margin-top:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${S.list.map(d=>`<div class="card"><b>${esc(d.name)}</b><div class="mu">${d.rows.length} rows · ${d.schema.length} columns<br>Uploaded ${new Date(d.created).toLocaleDateString()}${d.size?' · '+(d.size/1024).toFixed(0)+' KB':''}</div><p><button class="btn p" data-o="${d.id}">Open Dashboard</button> <button class="btn" data-r="${d.id}">Rename</button> <button class="btn" data-d="${d.id}">Delete</button></p></div>`).join('')||'<div class="card">No datasets yet.</div>'}</div>`;
+m.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{S.cur=b.dataset.o;S.view='dash';S.filters={};S.q='';render()});
+m.querySelectorAll('[data-r]').forEach(b=>b.onclick=async()=>{const d=S.list.find(x=>x.id===b.dataset.r),n=prompt('Rename dataset',d.name);if(n){d.name=n;await DB.put(d);render()}});
+m.querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this dataset?')){await DB.del(b.dataset.d);S.list=await DB.all();if(S.cur===b.dataset.d)S.cur=S.list[0]?.id;render()}})}
+// events
+$('#fi').onchange=e=>{S.view='dash';e.target.files[0]&&ingest(e.target.files[0])};
+$('#sw').onchange=e=>{S.cur=e.target.value;S.filters={};S.q='';S.view='dash';render()};
+document.querySelectorAll('nav .btn').forEach(b=>b.onclick=()=>{S.view=b.dataset.v;render()});
+$('#th').onclick=()=>{const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme:dark)').matches;r.dataset.theme=dark?'light':'dark'};
+(async()=>{try{S.list=await DB.all();S.cur=S.list[0]?.id}catch(e){}render()})();
+</script></body></html>
