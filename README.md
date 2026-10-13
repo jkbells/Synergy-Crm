@@ -10,3 +10,10 @@ Each route calls `requireWorkspace()`; every query filters by `workspaceId`. Inp
 ## Status
 Done: schema (contacts, companies, deals/pipelines, activities, tasks, datasets), auth helper, contacts/deals/import routes.
 TODO: companies, activities, tasks, datasets upload+analyze routes (port the analytics engine from synergy.html), frontend, email sync, workflows.
+
+
+
+https://synergy-it-crm.netlify.app/
+
+
+<img width="1915" height="977" alt="Screenshot 2026-10-13 121049" src="https://github.com/user-attachments/assets/4a14225b-83be-4705-87cb-c5a13c3b45c7" />
